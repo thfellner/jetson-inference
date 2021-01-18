@@ -42,6 +42,10 @@ parser.add_argument("--camera", type=str, default="0", help="index of the MIPI C
 parser.add_argument("--width", type=int, default=1280, help="desired width of camera stream (default is 1280 pixels)")
 parser.add_argument("--height", type=int, default=720, help="desired height of camera stream (default is 720 pixels)")
 parser.add_argument('--headless', action='store_true', default=(), help="run without display")
+parser.add_argument("--mqtt_broker_addr", type=str, default="broker.mqttdashboard.com", help="MQTT broker address")
+parser.add_argument("--mqtt_broker_port", type=int, default=1883, help="MQTT broker port")
+parser.add_argument("--mqtt_topic", type=str, default="SimulationFactory", help="MQTT topic to publish to")
+parser.add_argument("--mqtt_confidence", type=int, default=70, help="desired confidence above with the class description is published to MQTT broker")
 
 is_headless = ["--headless"] if sys.argv[0].find('console.py') != -1 else [""]
 
@@ -62,8 +66,8 @@ output = jetson.utils.videoOutput(opt.output_URI, argv=sys.argv+is_headless)
 font = jetson.utils.cudaFont()
 
 client = mqtt.Client()
-client.connect("broker.mqttdashboard.com", 1883)
-client.publish("SimulationFactory", "connected")
+client.connect(opt.mqtt_broker_addr, opt.mqtt_broker_port)
+client.publish(opt.mqtt_topic, "connected")
 
 # process frames until the user exits
 while True:
@@ -83,8 +87,8 @@ while True:
         output.Render(img)
 
         print(confidence)
-        if confidence > 0.7:
-            client.publish("SimulationFactory", class_desc)
+        if confidence*100 > opt.mqtt_confidence:
+            client.publish(opt.mqtt_topic, "{:05.2f}% {:s}".format(confidence * 100, class_desc))
 
 
         # update the title bar
@@ -93,7 +97,7 @@ while True:
         # print out performance info
         net.PrintProfilerTimes()
 
-        time.sleep(0.1)
+        time.sleep(1)
 
         # exit on input/output EOS
         if not input.IsStreaming() or not output.IsStreaming():
